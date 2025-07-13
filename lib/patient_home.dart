@@ -52,7 +52,12 @@ class PatientHomePage extends StatelessWidget {
             itemBuilder: (context, index) {
               final doc = doctors[index];
               final doctorId = doc.id;
-              final doctorEmail = doc['email'] ?? '';
+              final name = doc['name'] ?? '';
+final specialization = doc['specialization'] ?? '';
+final displayName = specialization.isNotEmpty
+    ? '$name (${specialization})'
+    : name;
+
               final chatId = generateChatId(currentUid, doctorId);
 
               return Card(
@@ -60,10 +65,13 @@ class PatientHomePage extends StatelessWidget {
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: Colors.teal.shade300,
-                    child: Text(doctorEmail[0].toUpperCase()),
+                    child: Text(
+  name.isNotEmpty ? name[0].toUpperCase() : '?',
+),
+
                   ),
                   title: Text(
-                    doctorEmail,
+                    displayName,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: const Text("Tap to chat"),
@@ -75,7 +83,7 @@ class PatientHomePage extends StatelessWidget {
                         builder: (_) => ChatPage(
                           chatId: chatId,
                           receiverId: doctorId,
-                          receiverEmail: doctorEmail,
+                          receiverEmail: displayName,
                         ),
                       ),
                     );

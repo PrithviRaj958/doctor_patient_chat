@@ -14,6 +14,8 @@ class _LoginPageState extends State<LoginPage> {
 
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final nameController = TextEditingController();
+  final specializationController = TextEditingController();
   String selectedRole = 'Patient';
 
   bool isLogin = true;
@@ -28,20 +30,48 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       if (isLogin) {
+        // Use name to find email
+        final name = nameController.text.trim();
+        final password = passwordController.text.trim();
+
+        final userSnap = await FirebaseFirestore.instance
+            .collection('users')
+            .where('name', isEqualTo: name)
+            .limit(1)
+            .get();
+
+        if (userSnap.docs.isEmpty) {
+          throw FirebaseAuthException(
+              code: 'user-not-found', message: 'No user found with this name.');
+        }
+
+        final email = userSnap.docs.first['email'];
         await auth.signInWithEmailAndPassword(
-          email: emailController.text.trim(),
-          password: passwordController.text.trim(),
+          email: email,
+          password: password,
         );
       } else {
+        // Registration
         await auth.createUserWithEmailAndPassword(
           email: emailController.text.trim(),
           password: passwordController.text.trim(),
         );
         final uid = auth.currentUser!.uid;
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+
+        final userData = {
           'email': emailController.text.trim(),
+          'name': nameController.text.trim(),
           'role': selectedRole,
-        });
+        };
+
+        if (selectedRole == 'Doctor') {
+          userData['specialization'] = specializationController.text.trim();
+        }
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .set(userData);
       }
     } on FirebaseAuthException catch (e) {
       setState(() => error = e.message ?? 'Authentication error');
@@ -91,15 +121,27 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
                 TextField(
-                  controller: emailController,
+                  controller: nameController,
                   decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
+                    labelText: 'Name',
+                    prefixIcon: Icon(Icons.person_outline),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                if (!isLogin)
+                  TextField(
+                    controller: emailController,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: passwordController,
@@ -124,12 +166,25 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     items: ['Patient', 'Doctor']
-                        .map(
-                          (role) =>
-                              DropdownMenuItem(value: role, child: Text(role)),
-                        )
+                        .map((role) => DropdownMenuItem(
+                              value: role,
+                              child: Text(role),
+                            ))
                         .toList(),
                   ),
+                  if (selectedRole == 'Doctor') ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: specializationController,
+                      decoration: InputDecoration(
+                        labelText: 'Specialization',
+                        prefixIcon: Icon(Icons.medical_services_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 16),
                 if (error.isNotEmpty)

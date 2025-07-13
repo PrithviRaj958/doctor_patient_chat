@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -62,11 +61,11 @@ class _ChatPageState extends State<ChatPage> {
         .doc(widget.chatId)
         .collection('messages')
         .add({
-          'text': text,
-          'senderId': user.uid,
-          'timestamp': FieldValue.serverTimestamp(),
-          'unreadBy': [widget.receiverId],
-        });
+      'text': text,
+      'senderId': user.uid,
+      'timestamp': FieldValue.serverTimestamp(),
+      'unreadBy': [widget.receiverId],
+    });
     messageController.clear();
     _updateTyping(false);
   }
@@ -104,36 +103,41 @@ class _ChatPageState extends State<ChatPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.receiverEmail),
-            StreamBuilder<DocumentSnapshot>(
-              stream: firestore
-                  .collection('chats')
-                  .doc(widget.chatId)
-                  .snapshots(),
-              builder: (context, snap) {
-                final data = snap.data?.data() as Map<String, dynamic>? ?? {};
-                final typing =
-                    data['typingStatus'] as Map<String, dynamic>? ?? {};
-                final isTyping = typing[widget.receiverId] == true;
-                return isTyping
-                    ? const Text(
-                        'Typing...',
-                        style: TextStyle(fontSize: 12, color: Colors.white70),
-                      )
-                    : const SizedBox();
-              },
-            ),
-          ],
+        title: StreamBuilder<DocumentSnapshot>(
+          stream: firestore.collection('users').doc(widget.receiverId).snapshots(),
+          builder: (context, snap) {
+            final data = snap.data?.data() as Map<String, dynamic>? ?? {};
+            final name = data.containsKey('name') ? data['name'] : widget.receiverEmail;
+            final specialization = data['specialization'] ?? '';
+            final displayName = specialization.isNotEmpty ? '$name ($specialization)' : name;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(displayName),
+                StreamBuilder<DocumentSnapshot>(
+                  stream: firestore.collection('chats').doc(widget.chatId).snapshots(),
+                  builder: (context, typingSnap) {
+                    final chatData = typingSnap.data?.data() as Map<String, dynamic>? ?? {};
+                    final typing = chatData['typingStatus'] as Map<String, dynamic>? ?? {};
+                    final isTyping = typing[widget.receiverId] == true;
+                    return isTyping
+                        ? const Text(
+                            'Typing...',
+                            style: TextStyle(fontSize: 12, color: Colors.white70),
+                          )
+                        : const SizedBox();
+                  },
+                ),
+              ],
+            );
+          },
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_forever),
             onPressed: () async {
-              final confirmed =
-                  await showDialog<bool>(
+              final confirmed = await showDialog<bool>(
                     context: context,
                     builder: (_) => AlertDialog(
                       title: const Text('Clear Chat?'),
@@ -164,11 +168,9 @@ class _ChatPageState extends State<ChatPage> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              print('🔴 Logging out...');
               await FirebaseAuth.instance.signOut();
-              if (context.mounted) {
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              }
+              if (!mounted) return;
+              Navigator.of(context).popUntil((route) => route.isFirst);
             },
           ),
         ],
@@ -178,44 +180,33 @@ class _ChatPageState extends State<ChatPage> {
           StreamBuilder<QuerySnapshot>(
             stream: messagesRef.snapshots(),
             builder: (context, snap) {
-              if (!snap.hasData)
-                return const Expanded(
-                  child: Center(child: CircularProgressIndicator()),
-                );
+              if (!snap.hasData) {
+                return const Expanded(child: Center(child: CircularProgressIndicator()));
+              }
               final docs = snap.data!.docs;
               return Expanded(
                 child: ListView(
                   reverse: true,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   children: docs.reversed.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
                     final owns = data['senderId'] == user.uid;
                     return Align(
-                      alignment: owns
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
+                      alignment: owns ? Alignment.centerRight : Alignment.centerLeft,
                       child: GestureDetector(
                         onLongPress: owns
                             ? () async {
-                                final confirm =
-                                    await showDialog<bool>(
+                                final confirm = await showDialog<bool>(
                                       context: context,
                                       builder: (_) => AlertDialog(
-                                        title: const Text(
-                                          'Delete this message?',
-                                        ),
+                                        title: const Text('Delete this message?'),
                                         actions: [
                                           TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context, false),
+                                            onPressed: () => Navigator.pop(context, false),
                                             child: const Text('Cancel'),
                                           ),
                                           TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context, true),
+                                            onPressed: () => Navigator.pop(context, true),
                                             child: const Text('Delete'),
                                           ),
                                         ],
@@ -232,9 +223,7 @@ class _ChatPageState extends State<ChatPage> {
                             maxWidth: MediaQuery.of(context).size.width * 0.75,
                           ),
                           decoration: BoxDecoration(
-                            color: owns
-                                ? Colors.teal.shade300
-                                : Colors.grey.shade300,
+                            color: owns ? Colors.teal.shade300 : Colors.grey.shade300,
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(16),
                               topRight: const Radius.circular(16),
@@ -244,9 +233,7 @@ class _ChatPageState extends State<ChatPage> {
                           ),
                           child: Text(
                             data['text'] ?? '',
-                            style: TextStyle(
-                              color: owns ? Colors.white : Colors.black,
-                            ),
+                            style: TextStyle(color: owns ? Colors.white : Colors.black),
                           ),
                         ),
                       ),
@@ -266,10 +253,7 @@ class _ChatPageState extends State<ChatPage> {
                     onChanged: (_) => _onTextChanged(),
                     decoration: InputDecoration(
                       hintText: 'Type a message…',
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       filled: true,
                       fillColor: Colors.white,
                       enabledBorder: OutlineInputBorder(
@@ -278,10 +262,7 @@ class _ChatPageState extends State<ChatPage> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
-                        borderSide: const BorderSide(
-                          color: Colors.teal,
-                          width: 2,
-                        ),
+                        borderSide: const BorderSide(color: Colors.teal, width: 2),
                       ),
                     ),
                   ),
